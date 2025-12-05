@@ -1,0 +1,35 @@
+{
+  "doc-95b663f00a3e402e3e5d9832d606c34b": {
+    "status": "processed",
+    "chunks_count": 1,
+    "chunks_list": [
+      "chunk-95b663f00a3e402e3e5d9832d606c34b"
+    ],
+    "content_summary": "# Combined Daraz & StarTech Product Corpus\n\n\n## Lenovo LOQ AI Powered Gaming (9) (83DV00K0LK) 13th Gen Core i7 16GB RAM 512GB SSD RTX 3050 Gaming Laptop  \n**DocID:** `daraz_535974587`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** Leno...",
+    "content_length": 1947,
+    "created_at": "2025-12-05T19:31:26.892222+00:00",
+    "updated_at": "2025-12-05T19:39:57.536310+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251205_193126_3180338d",
+    "metadata": {
+      "processing_start_time": 1764963349,
+      "processing_end_time": 1764963597
+    }
+  },
+  "doc-ead46809f4de4c2c5938fdd05045e52d": {
+    "status": "processing",
+    "chunks_count": 1,
+    "chunks_list": [
+      "chunk-ead46809f4de4c2c5938fdd05045e52d"
+    ],
+    "content_summary": "## Acer Aspire 5 A515-57G (UN.K9TSI.009) 12th Gen i5-1240P 3.3 to 4.4 GHz, 8GB, 512GB SSD, RTX2050 4GB, Win 11, 15.6\" FHD Gaming Laptop  \n**DocID:** `daraz_323077918`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** TNS  \n**URL:** https:...",
+    "content_length": 1599,
+    "created_at": "2025-12-05T19:39:57.546989+00:00",
+    "updated_at": "2025-12-05T19:39:57.548950+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251205_193957_ba041b22",
+    "metadata": {
+      "processing_start_time": 1764963597
+    }
+  }
+}
