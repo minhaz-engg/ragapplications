@@ -17,19 +17,261 @@
     }
   },
   "doc-ead46809f4de4c2c5938fdd05045e52d": {
-    "status": "processing",
-    "chunks_count": 1,
-    "chunks_list": [
-      "chunk-ead46809f4de4c2c5938fdd05045e52d"
-    ],
+    "status": "failed",
+    "error_msg": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-.... You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}}",
     "content_summary": "## Acer Aspire 5 A515-57G (UN.K9TSI.009) 12th Gen i5-1240P 3.3 to 4.4 GHz, 8GB, 512GB SSD, RTX2050 4GB, Win 11, 15.6\" FHD Gaming Laptop  \n**DocID:** `daraz_323077918`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** TNS  \n**URL:** https:...",
     "content_length": 1599,
     "created_at": "2025-12-05T19:39:57.546989+00:00",
-    "updated_at": "2025-12-05T19:39:57.548950+00:00",
+    "updated_at": "2025-12-06T17:00:57.604195+00:00",
     "file_path": "unknown_source",
     "track_id": "insert_20251205_193957_ba041b22",
     "metadata": {
-      "processing_start_time": 1764963597
+      "processing_start_time": 1765040457,
+      "processing_end_time": 1765040457
+    },
+    "chunks_list": []
+  },
+  "doc-ddf534e1a6a9e252633f7881a8d0696a": {
+    "status": "failed",
+    "error_msg": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-.... You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}}",
+    "content_summary": "## Gigabyte Gaming G5 KF 12th Gen i5-12500H 2.5 To 4.5GHz, 8GB, 512GB SSD, RTX4060 6GB, Win 11 Home, 15.6 Inch FHD Gaming Laptop  \n**DocID:** `daraz_318823674`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** Gigabyte  \n**URL:** https://...",
+    "content_length": 1757,
+    "created_at": "2025-12-06T16:59:43.231392+00:00",
+    "updated_at": "2025-12-06T17:00:59.702525+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_165943_29f307b1",
+    "metadata": {
+      "processing_start_time": 1765040457,
+      "processing_end_time": 1765040459
+    },
+    "chunks_list": []
+  },
+  "doc-8823585114bf3c77b1bca92f3dafa745": {
+    "status": "failed",
+    "error_msg": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-.... You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}}",
+    "content_summary": "## HP VICTUS 15-FB1013 AMD Ryzen 5 7535HS 8GB RAM 512GB SSD 4GB RTX2050 15.6\" FHD IPS Gaming Laptop  \n**DocID:** `daraz_347830241`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** HP  \n**URL:** https://www.daraz.com.bd/products/hp-victus...",
+    "content_length": 1501,
+    "created_at": "2025-12-06T16:59:43.981645+00:00",
+    "updated_at": "2025-12-06T17:00:58.098635+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_165943_5d06e5fe",
+    "metadata": {
+      "processing_start_time": 1765040457,
+      "processing_end_time": 1765040458
+    },
+    "chunks_list": []
+  },
+  "doc-8f1abaf95339bb7333c6f496872d92f1": {
+    "status": "failed",
+    "error_msg": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-.... You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}}",
+    "content_summary": "## MSI Modern 15 B12M Intel Core I7-1255U 12thGen 16GB 3200MHz RAM 512GB NVMe SSD 15.6 Inch FHD 60Hz Classic Black Laptop  \n**DocID:** `daraz_322109154`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** MSI  \n**URL:** https://www.daraz.co...",
+    "content_length": 1959,
+    "created_at": "2025-12-06T16:59:45.529939+00:00",
+    "updated_at": "2025-12-06T17:00:58.605372+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_165945_944b6cda",
+    "metadata": {
+      "processing_start_time": 1765040458,
+      "processing_end_time": 1765040458
+    },
+    "chunks_list": []
+  },
+  "doc-6d54a63b910098ea94917c04bc3e92d2": {
+    "status": "failed",
+    "error_msg": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-.... You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}}",
+    "content_summary": "## Lenovo V14 Gen4 14' FHD Business Laptop, AMD Ryzen 5 7520U Processor 16GB LPDDR5 RAM 256GB PCIe SSD ,2gb graphics  \n**DocID:** `daraz_496260656`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** No Brand  \n**URL:** https://www.daraz.co...",
+    "content_length": 1561,
+    "created_at": "2025-12-06T16:59:49.187079+00:00",
+    "updated_at": "2025-12-06T17:00:59.094630+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_165949_14befc37",
+    "metadata": {
+      "processing_start_time": 1765040458,
+      "processing_end_time": 1765040459
+    },
+    "chunks_list": []
+  },
+  "doc-488861c13b9b9a2c8d74005b26055a9e": {
+    "status": "failed",
+    "error_msg": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-.... You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}}",
+    "content_summary": "## ASUS TUF Gaming A15 FA506NFR-HN004W Ryzen 7-7435HS 8GB RAM, 512GB SSD, RTX 2050 GPU,Win 11, 15.6 Inch FHD Gaming Laptop  \n**DocID:** `daraz_471700773`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** ASUS  \n**URL:** https://www.daraz....",
+    "content_length": 1958,
+    "created_at": "2025-12-06T16:59:50.724959+00:00",
+    "updated_at": "2025-12-06T17:00:59.646101+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_165950_a02a650f",
+    "metadata": {
+      "processing_start_time": 1765040459,
+      "processing_end_time": 1765040459
+    },
+    "chunks_list": []
+  },
+  "doc-80dde81af1f18931f47ad87aad2f26db": {
+    "status": "failed",
+    "error_msg": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-.... You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}}",
+    "content_summary": "## Dell Inspiron 15 5510 11th Gen Core i5-11300H 3.1 to 4.4GHz, 8GB, 512GB SSD, Win10, 15.6 FHD Gaming Laptop  \n**DocID:** `daraz_275382755`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** Dell  \n**URL:** https://www.daraz.com.bd/produc...",
+    "content_length": 1621,
+    "created_at": "2025-12-06T16:59:53.181386+00:00",
+    "updated_at": "2025-12-06T17:01:00.114443+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_165953_8a669294",
+    "metadata": {
+      "processing_start_time": 1765040459,
+      "processing_end_time": 1765040460
+    },
+    "chunks_list": []
+  },
+  "doc-460204b669378775a504c6695078d203": {
+    "status": "failed",
+    "error_msg": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-.... You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}}",
+    "content_summary": "## HP PROBOOK 440 G10 CORE I7 13TH GEN 8GB RAM 512 GB DOS 14'' DISPLAY BACKLIT & FINGERPRINT  \n**DocID:** `daraz_476165158`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** No Brand  \n**URL:** https://www.daraz.com.bd/products/hp-probook...",
+    "content_length": 1873,
+    "created_at": "2025-12-06T16:59:56.876560+00:00",
+    "updated_at": "2025-12-06T17:01:00.167915+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_165956_a7564a04",
+    "metadata": {
+      "processing_start_time": 1765040459,
+      "processing_end_time": 1765040460
+    },
+    "chunks_list": []
+  },
+  "doc-f508c0af1c01c84e73577a2ba767d8a3": {
+    "status": "processing",
+    "chunks_count": 1,
+    "chunks_list": [
+      "chunk-f508c0af1c01c84e73577a2ba767d8a3"
+    ],
+    "content_summary": "## Lenovo IP Gaming 3i #82K100WFIN 3Y# 11th Gen i7-11370H 3.3 to 4.8GHz, 16GB, 256GB SSD + 1TB HDD, GTX 1650 4GB, 15.6 IPS Gaming Laptop  \n**DocID:** `daraz_270395996`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** Lenovo  \n**URL:** ht...",
+    "content_length": 1794,
+    "created_at": "2025-12-06T17:00:00.693202+00:00",
+    "updated_at": "2025-12-06T17:01:00.116065+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_170000_abf8c923",
+    "metadata": {
+      "processing_start_time": 1765040460
     }
+  },
+  "doc-7ec42010fec35bc71cbac043f88e89e3": {
+    "status": "processing",
+    "chunks_count": 1,
+    "chunks_list": [
+      "chunk-7ec42010fec35bc71cbac043f88e89e3"
+    ],
+    "content_summary": "## Lenovo LOQ AI Powered Gaming (9) (83GS006LLK) 12th Gen Core-i5 16GB RAM 512GB SSD RTX 2050 Gaming Laptop  \n**DocID:** `daraz_536140001`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** Lenovo  \n**URL:** https://www.daraz.com.bd/produc...",
+    "content_length": 1901,
+    "created_at": "2025-12-06T17:00:06.361473+00:00",
+    "updated_at": "2025-12-06T17:01:00.169344+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_170006_cadea5fa",
+    "metadata": {
+      "processing_start_time": 1765040460
+    }
+  },
+  "doc-3afb448b08298842717682b1abbd4aec": {
+    "status": "pending",
+    "content_summary": "## Lenovo LOQ (E) Gaming (9) (83LK004KLK) 12th Gen Core i5 12GB RAM 512GB SSD RTX 2050 Gaming Laptop  \n**DocID:** `daraz_536016183`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** Lenovo  \n**URL:** https://www.daraz.com.bd/products/leno...",
+    "content_length": 1884,
+    "created_at": "2025-12-06T17:00:10.992662+00:00",
+    "updated_at": "2025-12-06T17:00:57.100916+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_170010_0e584cd3",
+    "error_msg": "",
+    "metadata": {},
+    "chunks_list": []
+  },
+  "doc-915707f8d727822c1288ec6638853cdc": {
+    "status": "pending",
+    "content_summary": "## HP Elite Dragonfly Core i5 8th Gen 8GB RAM 13.3\" Touch  \n**DocID:** `daraz_557075039`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** No Brand  \n**URL:** https://www.daraz.com.bd/products/hp-i5-8th-8gb-ram-133-i557075039.html\n**Price...",
+    "content_length": 1802,
+    "created_at": "2025-12-06T17:00:14.569406+00:00",
+    "updated_at": "2025-12-06T17:00:57.100926+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_170014_2c1dd52c",
+    "error_msg": "",
+    "metadata": {},
+    "chunks_list": []
+  },
+  "doc-1c771cc2410bdfa4904695c7d6a2351e": {
+    "status": "pending",
+    "content_summary": "## HP Victus 15-fa1090nia Intel Core i5 13th GEN 8GB DDR4 RAM 512GB NVME SSD NVDIA GeForce RTX 2050 4GB GDDR6 GPU 15.6″ FHD IPS LED Display Laptop  \n**DocID:** `daraz_326100105`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** HP  \n**URL...",
+    "content_length": 2007,
+    "created_at": "2025-12-06T17:00:20.113514+00:00",
+    "updated_at": "2025-12-06T17:00:57.100936+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_170020_fa89be96",
+    "error_msg": "",
+    "metadata": {},
+    "chunks_list": []
+  },
+  "doc-17e315a0ea82de3c7dde2669469e885e": {
+    "status": "pending",
+    "content_summary": "## Lenovo LOQ Gaming (9) (83DV00F9LK) 13th Gen Core-i5 Gaming Laptop  \n**DocID:** `daraz_536024915`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** Lenovo  \n**URL:** https://www.daraz.com.bd/products/lenovo-loq-9-83dv00f9lk-13th-gen-cor...",
+    "content_length": 1832,
+    "created_at": "2025-12-06T17:00:25.199669+00:00",
+    "updated_at": "2025-12-06T17:00:57.100945+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_170025_9e677928",
+    "error_msg": "",
+    "metadata": {},
+    "chunks_list": []
+  },
+  "doc-eeb72c2e9ba354aea915e07477c77f2a": {
+    "status": "pending",
+    "content_summary": "## ASUS ROG Zephyrus G15 GA503RM Ryzen 7 6800HS Gaming Laptop - 16GB DDR5 RAM - 1TB M.2 NVMe SSD - RTX 3060 6GB GDDR6 Graphics - 15.6-inch 2K WQHD Display - Eclipse Gray #GA503RM-LN058W  \n**DocID:** `daraz_274584139`\n**Source:** Daraz  \n**Category:**...",
+    "content_length": 2019,
+    "created_at": "2025-12-06T17:00:30.701201+00:00",
+    "updated_at": "2025-12-06T17:00:57.100955+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_170030_b4323ce7",
+    "error_msg": "",
+    "metadata": {},
+    "chunks_list": []
+  },
+  "doc-0225af63867dd25ea5341eba976b9e8f": {
+    "status": "pending",
+    "content_summary": "## Gigabyte Aorus 15 XE4 12th Gen i7-12700H 2.3 to 4.7GHz,16GB, 1TB SSD, RTX3070Ti GDDR6 8GB,Windows 11, 15.6 Inch FHD IPS Gaming Laptop  \n**DocID:** `daraz_280334409`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** Gigabyte  \n**URL:** ...",
+    "content_length": 1651,
+    "created_at": "2025-12-06T17:00:37.437763+00:00",
+    "updated_at": "2025-12-06T17:00:57.100964+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_170037_a5f031f7",
+    "error_msg": "",
+    "metadata": {},
+    "chunks_list": []
+  },
+  "doc-63f3b6723d399a90c4719f9790fca113": {
+    "status": "pending",
+    "content_summary": "## HP VICTUS 15-FB1013 AMD Ryzen 5 7535HS 8GB RAM 512GB SSD 4GB RTX2050 15.6\" FHD IPS Gaming Laptop  \n**DocID:** `daraz_347824374`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** HP  \n**URL:** https://www.daraz.com.bd/products/hp-victus...",
+    "content_length": 1501,
+    "created_at": "2025-12-06T17:00:43.698283+00:00",
+    "updated_at": "2025-12-06T17:00:57.100973+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_170043_5a97e8f5",
+    "error_msg": "",
+    "metadata": {},
+    "chunks_list": []
+  },
+  "doc-5039c72945e2fa988739fffbcf0d3258": {
+    "status": "pending",
+    "content_summary": "## Lenovo Legion 7 16ACHg6 (82N600NFIN-3Y) Ryzen 9 5900HX 3.3 To 4.6GHz, 16GB, 1TB SSD, GTX 3080 16GB, Win11H, 16Inch WQXGA IPS Gaming Laptop  \n**DocID:** `daraz_281228436`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** Lenovo  \n**URL:...",
+    "content_length": 1950,
+    "created_at": "2025-12-06T17:00:50.262393+00:00",
+    "updated_at": "2025-12-06T17:00:57.100983+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_170050_12300724",
+    "error_msg": "",
+    "metadata": {},
+    "chunks_list": []
+  },
+  "doc-063d6f68e94d7160ca6e4f73f22a4587": {
+    "status": "pending",
+    "content_summary": "## Lenovo IdeaPad Gaming 3 (82K201AXIN-3Y) AMD Ryzen 7 5800H 3.2 to 4.4GHz, 16GB, 256GB SSD+ 1TB HDD, GTX1650 4GB, Win11H,15.6Inch FHD Gaming Laptop  \n**DocID:** `daraz_226089603`\n**Source:** Daraz  \n**Category:** gaming laptops  \n**Brand:** Lenovo  ...",
+    "content_length": 1665,
+    "created_at": "2025-12-06T17:00:57.098949+00:00",
+    "updated_at": "2025-12-06T17:00:57.098957+00:00",
+    "file_path": "unknown_source",
+    "track_id": "insert_20251206_170057_0405b8b2",
+    "chunks_list": []
   }
 }
