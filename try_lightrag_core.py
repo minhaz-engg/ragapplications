@@ -1,97 +1,215 @@
-# try_lightrag_core.py
-import os, re, asyncio, inspect, shutil
+import os
+import re
+import time
+import requests
+import asyncio
+from dataclasses import dataclass
+from typing import List, Dict, Optional
+
+import streamlit as st
 from dotenv import load_dotenv
 
-load_dotenv()
-
+# --- Standard Library Imports ---
+from openai import AsyncOpenAI
 from lightrag import LightRAG, QueryParam
-from lightrag.llm.openai import gpt_4o_mini_complete, openai_embed
+
+# 🛑 THE FIX: Import the pipeline initializer
 from lightrag.kg.shared_storage import initialize_pipeline_status
 
-WORKING_DIR = "./lightrag_cache"
-COMBINED_MD = "./combined_corpus.md"  # put your file here (same folder as this script)
-CLEAN_FIRST = False  # set True once if you want to wipe previous cache
+# Load Environment Variables
+load_dotenv()
 
-# --- helpers ---------------------------------------------------------------
+# ======================================================
+# 1. CONFIGURATION
+# ======================================================
+DEFAULT_CORPUS_URL = "https://raw.githubusercontent.com/minhaz-engg/scrape-scheduler/refs/heads/main/out/combined_corpus.md"
+WORKING_DIR = "./lightrag_index"
 
-def read_items_from_md(path: str) -> list[str]:
-    """
-    Your corpus is a big markdown file with many items, separated by lines '---'.
-    We keep each item block as a separate document so LightRAG can dedupe & link them well.
-    """
-    with open(path, "r", encoding="utf-8") as f:
-        text = f.read().strip()
-    # split on lines that are only --- (with optional surrounding whitespace)
-    parts = re.split(r"\n\s*---\s*\n", text)
-    # keep only non-empty, minimally-sized items
-    parts = [p.strip() for p in parts if p.strip()]
-    return parts
+if not os.getenv("OPENAI_API_KEY"):
+    st.error("⚠️ OPENAI_API_KEY not found. Please set it in your .env file.")
+    st.stop()
 
-async def print_stream(resp):
-    if inspect.isasyncgen(resp):
-        async for chunk in resp:
-            if chunk:
-                print(chunk, end="", flush=True)
-        print()
-    else:
-        print(resp)
+# ======================================================
+# 2. THE ROBUST DRIVER (With Embedding Dimension Fix)
+# ======================================================
 
-# --- lifecycle -------------------------------------------------------------
+openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-async def initialize_rag() -> LightRAG:
-    rag = LightRAG(
-        working_dir=WORKING_DIR,
-        # Uses OpenAI bindings the project ships with:
-        llm_model_func=gpt_4o_mini_complete,   # for answers
-        embedding_func=openai_embed,           # text-embedding-3-small (1536-d)
+async def my_llm_model_func(prompt, system_prompt=None, history_messages=[], **kwargs):
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    if history_messages:
+        messages.extend(history_messages)
+    messages.append({"role": "user", "content": prompt})
+
+    response = await openai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages,
+        **kwargs
     )
-    # REQUIRED in current versions (storage first, pipeline second):
+    return response.choices[0].message.content
+
+async def my_embedding_func(texts: list[str]):
+    response = await openai_client.embeddings.create(
+        model="text-embedding-3-small",
+        input=texts
+    )
+    return [data.embedding for data in response.data]
+
+# 🛑 CRITICAL FIX: Manually stamping the dimension
+my_embedding_func.embedding_dim = 1536 
+
+# ======================================================
+# 3. ASYNC WRAPPERS (The Full Initialization Chain)
+# ======================================================
+
+def get_rag_instance():
+    """Creates the instance (but does NOT initialize storage yet)."""
+    if not os.path.exists(WORKING_DIR):
+        os.makedirs(WORKING_DIR)
+    
+    return LightRAG(
+        working_dir=WORKING_DIR,
+        llm_model_func=my_llm_model_func,
+        embedding_func=my_embedding_func
+    )
+
+async def run_ingest_pipeline(texts: List[str]):
+    """
+    Lifecycle Manager for Ingestion:
+    1. Create Instance
+    2. Await Storage Init
+    3. Await Pipeline Status Init (THE NEW FIX)
+    4. Await Insertion
+    """
+    rag = get_rag_instance()
+    
+    # Sequence required by LightRAG v1.0+
+    await rag.initialize_storages() 
+    await initialize_pipeline_status()  # <--- NEW REQUIRED CALL
+    
+    await rag.ainsert(texts)
+    return "Done"
+
+async def run_query_pipeline(query: str, mode: str):
+    """
+    Lifecycle Manager for Querying
+    """
+    rag = get_rag_instance()
+    
+    # Sequence required by LightRAG v1.0+
     await rag.initialize_storages()
-    await initialize_pipeline_status()  # <-- the missing piece in your run
-    return rag
+    await initialize_pipeline_status() # <--- NEW REQUIRED CALL
+    
+    param = QueryParam(mode=mode)
+    result = await rag.aquery(query, param=param)
+    return result
 
-async def safe_finalize(rag: LightRAG | None):
-    if rag is not None:
-        try:
-            await rag.finalize_storages()
-        except Exception as e:
-            print("Finalize warning:", e)
+# ======================================================
+# 4. DATA PARSING (Standard)
+# ======================================================
 
-# --- main workflow ---------------------------------------------------------
+@dataclass
+class ProductDoc:
+    doc_id: str
+    title: str
+    source: Optional[str]
+    category: Optional[str]
+    price_value: Optional[float]
+    url: Optional[str]
+    extracted_specs: Dict[str, str]
 
-async def main():
-    # optional: clean storages to avoid “already exists / no new unique docs” confusion
-    if CLEAN_FIRST and os.path.exists(WORKING_DIR):
-        shutil.rmtree(WORKING_DIR, ignore_errors=True)
-        os.makedirs(WORKING_DIR, exist_ok=True)
+def extract_attributes(title: str, category: str) -> Dict[str, str]:
+    specs = {}
+    title_lower = title.lower()
+    cat_lower = (category or "").lower()
+    
+    if any(x in cat_lower for x in ['laptop', 'phone', 'tab']):
+        ram = re.search(r'(\d+)\s?GB', title, re.IGNORECASE)
+        if ram: specs['RAM'] = ram.group(1) + "GB"
+    return specs
 
-    if not os.path.exists(COMBINED_MD):
-        raise FileNotFoundError(f"Cannot find {COMBINED_MD}; put your corpus here.")
+def parse_corpus_text(md_text: str) -> List[ProductDoc]:
+    text = (md_text or "").strip()
+    parts = [p.strip() for p in re.split(r"\s+---\s+", text) if p.strip()]
+    products = []
+    
+    for part in parts:
+        title_m = re.search(r"##\s*(.+?)\n", part)
+        title = title_m.group(1).strip() if title_m else "Unknown"
+        if title == "Unknown": continue
 
-    rag = None
-    try:
-        rag = await initialize_rag()
+        price_m = re.search(r"\*\*Price:\*\*\s*([\d,]+)", part)
+        price_val = float(price_m.group(1).replace(",", "")) if price_m else 0.0
 
-        items = read_items_from_md(COMBINED_MD)
-        print(f"Found {len(items)} items from markdown. Inserting...")
+        specs = extract_attributes(title, "General")
+        products.append(ProductDoc(
+            doc_id="N/A", title=title, source="Web", category="General",
+            price_value=price_val, url=None, extracted_specs=specs
+        ))
+    return products
 
-        # Insert sequentially (simple & robust). You can parallelize if you want.
-        for i, txt in enumerate(items, 1):
-            await rag.ainsert(txt)
-            if i % 100 == 0:
-                print(f"  inserted {i} / {len(items)}")
+def format_products_for_ingestion(products: List[ProductDoc]) -> List[str]:
+    texts = []
+    for p in products:
+        spec_str = ", ".join([f"{k} is {v}" for k, v in p.extracted_specs.items()])
+        narrative = (
+            f"Product: {p.title}. Price: {p.price_value} Taka. "
+            f"Specs: {spec_str}."
+        )
+        texts.append(narrative)
+    return texts
 
-        print("✅ Ingestion complete.\n")
+# ======================================================
+# 5. STREAMLIT UI
+# ======================================================
 
-        # Quick compatibility check: run the same question under different modes
-        question = "Cheapest Lenovo LOQ with RTX 2050 and 16GB RAM?"
-        for mode in ["naive", "local", "global", "hybrid"]:
-            print(f"\n--- [{mode.upper()}] ---")
-            resp = await rag.aquery(question, param=QueryParam(mode=mode, stream=True))
-            await print_stream(resp)
+st.set_page_config(page_title="LightRAG Pro", layout="wide")
+st.title("🧠 Neuro-Symbolic LightRAG (Pipeline Fixed)")
 
-    finally:
-        await safe_finalize(rag)
+with st.sidebar:
+    st.header("⚙️ Knowledge Base")
+    
+    if st.button("1. Fetch Live Data"):
+        with st.spinner("Downloading..."):
+            try:
+                resp = requests.get(DEFAULT_CORPUS_URL)
+                products = parse_corpus_text(resp.text)
+                st.session_state['products'] = products
+                st.success(f"Fetched {len(products)} products!")
+            except Exception as e:
+                st.error(str(e))
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    if st.button("2. Build/Update Graph (Async)"):
+        if 'products' in st.session_state:
+            with st.spinner("Initializing Pipeline & Building Graph..."):
+                texts = format_products_for_ingestion(st.session_state['products'])
+                
+                # RUN ASYNC IN SYNC CONTEXT
+                asyncio.run(run_ingest_pipeline(texts))
+                
+                st.success("Graph Updated & Saved!")
+        else:
+            st.warning("Fetch data first.")
+
+    st.markdown("---")
+    
+    if os.path.exists(WORKING_DIR) and len(os.listdir(WORKING_DIR)) > 0:
+        st.success(f"✅ DB Active ({len(os.listdir(WORKING_DIR))} files)")
+    else:
+        st.warning("⚠️ DB Empty")
+
+    mode = st.selectbox("Mode", ["hybrid", "local", "global"])
+
+query = st.text_input("Ask:", placeholder="Compare prices...")
+
+if query:
+    start_time = time.time()
+    with st.spinner("Reasoning..."):
+        # RUN ASYNC IN SYNC CONTEXT
+        response = asyncio.run(run_query_pipeline(query, mode))
+        
+    st.markdown("### 💡 Answer")
+    st.markdown(response)
+    st.caption(f"Time: {time.time()-start_time:.2f}s")
