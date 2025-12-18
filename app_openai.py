@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-Daraz + StarTech Products RAG — RAPTOR (L1) + Chonkie + BM25 (Streamlit App)
-===========================================================================
+Daraz + StarTech Products RAG — Chonkie + BM25 (Streamlit App)
+==============================================================
 
 What this file does (high level):
 - Loads your combined corpus (Daraz + StarTech) from a default raw GitHub URL.
-- Parses products into ProductDoc objects.
-- L0 Chunks: Uses Chonkie to create one chunk per product (fine-grained).
-- L1 Chunks (RAPTOR):
-    - Groups products by category.
-    - Generates an LLM-based summary for each category.
-    - Caches these summaries locally based on the corpus content.
-- Builds a unified BM25 index over L0 (product) + L1 (summary) chunks.
-- Lets you search + filter (source, category, price cap, etc.).
-- Streams a strictly grounded LLM answer (OpenAI Chat Completions).
+- Allows optionally overriding this URL via the sidebar.
+- Parses each inline product entry like:
+    ## <Title> **DocID:** `<id>` **Source:** <Daraz|StarTech> **Category:** <txt> **Price:** <৳...> ---
+  (Fields are optional; code is robust to missing price/category.)
+- Converts products into compact ProductDoc objects with metadata (source, category, price_value, etc.)
+- Uses **Chonkie** to chunk each product (usually 1 short chunk per item) and builds a **BM25** index.
+- Lets you search + filter (source, category, price cap, rating threshold if present in future data).
+- Streams a strictly grounded LLM answer (OpenAI Chat Completions). Citations reference DocIDs.
 
 Dependencies (pip):
     streamlit, python-dotenv, openai, rank_bm25, chonkie, requests
@@ -28,10 +27,8 @@ import io
 import json
 import pickle
 import hashlib
-import time
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Tuple
-from collections import defaultdict
 
 import streamlit as st
 from openai import OpenAI
@@ -44,7 +41,7 @@ load_dotenv()
 # ----------------------------
 # App Config
 # ----------------------------
-INDEX_DIR = "index"                     # local cache folder for BM25 + metadata
+INDEX_DIR = "index"                             # local cache folder for BM25 + metadata
 os.makedirs(INDEX_DIR, exist_ok=True)
 
 # --- !!! IMPORTANT: SET YOUR DEFAULT URL HERE !!! ---
@@ -53,10 +50,9 @@ os.makedirs(INDEX_DIR, exist_ok=True)
 DEFAULT_CORPUS_URL = "https://raw.githubusercontent.com/minhaz-engg/ragapplications/refs/heads/main/refined_dataset/combined_corpus_fixed.md"
 # ---
 
-DEFAULT_MODEL = "gpt-4o-mini"           # inexpensive + capable
-DEFAULT_TOPK = 10                       # how many chunks for LLM grounding
-DEFAULT_LANG = "en"                     # Chonkie recipe language
-RAPTOR_MODEL = "gpt-4o-mini"            # Model for L1 summary generation
+DEFAULT_MODEL = "gpt-4o-mini"                   # inexpensive + capable
+DEFAULT_TOPK = 10                               # how many chunks for LLM grounding
+DEFAULT_LANG = "en"                             # Chonkie recipe language
 
 # ----------------------------
 # Data structures
@@ -66,7 +62,17 @@ RAPTOR_MODEL = "gpt-4o-mini"            # Model for L1 summary generation
 class ProductDoc:
     """
     A single product parsed from the combined corpus.
-    (See original file for full attribute docstring)
+
+    Attributes:
+        doc_id: Stable identifier (e.g., daraz_123, startech_456).
+        title: Product title (from '## ...').
+        source: 'Daraz' or 'StarTech' (from '**Source:** ...').
+        category: Category string (from '**Category:** ...').
+        price_value: Numeric approximation of price (min if range).
+        rating_avg: Float if '**Rating:** X/5' ever appears in corpus (future-proof).
+        rating_cnt: Int if '(N ratings)' pattern appears (future-proof).
+        url: Optional URL if '**URL:** ...' is present (future-proof).
+        raw_md: Raw text we index & show (compact, 1 block per item).
     """
     doc_id: str
     title: str
@@ -81,7 +87,7 @@ class ProductDoc:
 
 @dataclass
 class ChunkRec:
-    """A single search chunk (L0 Product or L1 Summary)"""
+    """A single search chunk with light metadata for filtering & display."""
     doc_id: str
     title: str
     source: Optional[str]
@@ -91,14 +97,14 @@ class ChunkRec:
     rating_cnt: Optional[int]
     url: Optional[str]
     text: str
-    level: int # 0 = Product, 1 = RAPTOR Summary
 
 
 # ----------------------------
-# Regex helpers (Unchanged)
+# Regex helpers for the combined corpus
 # ----------------------------
 
-# (Regex definitions are unchanged from your original file)
+# Each product appears inline, separated by '---'.
+# We capture title, docid, source, category, price, url (if present).
 ITEM_RE = re.compile(
     r"##\s*(?P<title>.*?)\s*"
     r"\*\*DocID:\*\*\s*`(?P<docid>[^`]+)`"
@@ -116,7 +122,7 @@ RATING_RE = re.compile(
 )
 
 # ----------------------------
-# Utilities (Mostly Unchanged)
+# Utilities
 # ----------------------------
 
 STOPWORDS = set([
@@ -134,7 +140,11 @@ def _index_paths(sig: str) -> Tuple[str, str]:
     )
 
 def _parse_price_value(s: str) -> Optional[float]:
-    """ (Unchanged) Extract numeric price from display string. """
+    """
+    Extract numeric price from display string.
+    - Handles symbols/commas: '৳ 1,999' -> 1999.0
+    - Handles ranges: '৳1500 - ৳2100' -> 1500.0 (min)
+    """
     if not s:
         return None
     s = s.replace(",", "")
@@ -148,7 +158,6 @@ def _parse_price_value(s: str) -> Optional[float]:
         return None
 
 def _clean_for_bm25(text: str) -> str:
-    """ (Unchanged) """
     clean_lines = []
     for line in text.splitlines():
         ll = line.strip()
@@ -156,7 +165,7 @@ def _clean_for_bm25(text: str) -> str:
             continue
         if ll.lower().startswith("**images"):
             continue
-        if "http://" in ll or "https://://" in ll:
+        if "http://" in ll or "https://" in ll:
             parts = re.split(r"\s+https?://\S+", ll)
             ll = " ".join([p for p in parts if p.strip()])
             if not ll:
@@ -165,25 +174,26 @@ def _clean_for_bm25(text: str) -> str:
     return "\n".join(clean_lines)
 
 def _tokenize(text: str) -> List[str]:
-    """ (Unchanged) """
     toks = re.findall(r"[A-Za-z0-9_]+", text.lower())
     return [t for t in toks if t not in STOPWORDS]
 
-@st.cache_resource
 def _ensure_client() -> OpenAI:
-    """ (Modified) Caches the client."""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("Missing OPENAI_API_KEY environment variable.")
     return OpenAI()
 
 # ----------------------------
-# Parsing combined corpus (Unchanged)
+# Parsing combined corpus
 # ----------------------------
+
+# --- This is the new, more robust parser ---
 
 def parse_combined_products_from_md(md_text: str) -> List[ProductDoc]:
     """
-    (Unchanged) Robust parser for the combined corpus.
+    Robust parser for the combined corpus. Accepts any field order, optional backticks, and
+    can infer Source from the DocID prefix (daraz_ / startech_).
+    Expected separators: items delimited by '---'.
     """
     text = (md_text or "").strip()
 
@@ -199,27 +209,30 @@ def parse_combined_products_from_md(md_text: str) -> List[ProductDoc]:
         m = re.search(r"##\s*(.+?)\s*(?=\*\*DocID:\*\*|\*\*DOCID:\*\*|DocID:|DOCID:)", part, re.IGNORECASE | re.DOTALL)
         title = (m.group(1).strip() if m else "").strip()
         if not title:
+            # If we can't find a title, skip this part
             continue
 
-        # DocID
+        # DocID (with or without backticks)
         m = re.search(r"\*\*DocID:\*\*\s*`?([A-Za-z0-9_\-]+)`?|DocID:\s*`?([A-Za-z0-9_\-]+)`?", part, re.IGNORECASE)
         doc_id = None
         if m:
             doc_id = (m.group(1) or m.group(2) or "").strip()
         if not doc_id:
+            # No doc id, skip
             continue
 
         # URL (optional)
         m = re.search(r"\*\*URL:\*\*\s*(\S+)", part, re.IGNORECASE)
         url = m.group(1).strip() if m else None
 
-        # Source
+        # Source — accept **Source:** or plain Source:
         m = re.search(r"\*\*Source:\*\*\s*([^*]+)", part, re.IGNORECASE)
         source = m.group(1).strip() if m else None
         if not source:
             m2 = re.search(r"\bSource:\s*([A-Za-z][A-Za-z \-]+)", part, re.IGNORECASE)
             source = m2.group(1).strip() if m2 else None
 
+        # If still missing, infer from DocID
         if not source:
             if doc_id.lower().startswith("daraz_"):
                 source = "Daraz"
@@ -265,14 +278,13 @@ def parse_combined_products_from_md(md_text: str) -> List[ProductDoc]:
 
 
 # ----------------------------
-# L0 Chunking (Chonkie)
+# Chunking (Chonkie)
 # ----------------------------
 
 def build_chunker(lang: str = DEFAULT_LANG) -> RecursiveChunker:
     return RecursiveChunker.from_recipe("markdown", lang=lang)
 
-def product_to_l0_chunks(product: ProductDoc, chunker: RecursiveChunker) -> List[ChunkRec]:
-    """ (Modified) This now generates L0 (Level 0) chunks. """
+def product_to_chunks(product: ProductDoc, chunker: RecursiveChunker) -> List[ChunkRec]:
     chunks = []
     try:
         chonks = chunker(product.raw_md)  # typically 1 short chunk
@@ -291,176 +303,44 @@ def product_to_l0_chunks(product: ProductDoc, chunker: RecursiveChunker) -> List
             doc_id=product.doc_id, title=product.title, source=product.source,
             category=product.category, price_value=product.price_value,
             rating_avg=product.rating_avg, rating_cnt=product.rating_cnt,
-            url=product.url, text=indexed_text, level=0
+            url=product.url, text=indexed_text
         ))
     return chunks
 
 # ----------------------------
-# L1 RAPTOR Summaries (NEW)
+# BM25 indexing
 # ----------------------------
 
-def _call_llm_summarizer(client: OpenAI, prompt: str, model: str) -> str:
-    """Helper to call OpenAI for summarization."""
-    try:
-        resp = client.chat.completions.create(
-            model=model,
-            temperature=0.1,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant. Summarize the provided product data concisely in one paragraph."},
-                {"role": "user", "content": prompt}
-            ],
-            timeout=120,
-        )
-        return (resp.choices[0].message.content or "").strip()
-    except Exception as e:
-        st.warning(f"Failed to generate summary: {e}")
-        return ""
-
-def load_or_generate_l1_summaries(
-    products: List[ProductDoc],
-    client: OpenAI,
-    model: str,
-    enable_raptor: bool
-) -> List[ChunkRec]:
-    """
-    Groups products by category and generates/caches LLM summaries (L1 Chunks).
-    """
-    if not enable_raptor:
-        return []
-
-    # Group products by category
-    groups = defaultdict(list)
-    for p in products:
-        cat = p.category or "Uncategorized"
-        groups[cat].append(p)
-
-    # Create a stable hash based on the product IDs in each category
-    # This ensures we only re-generate summaries if the products *change*
-    sorted_groups = {
-        k: sorted([p.doc_id for p in v])
-        for k, v in groups.items()
-    }
-    products_hash = _sha1(json.dumps(sorted_groups, sort_keys=True))
-    l1_cache_file = os.path.join(INDEX_DIR, f"raptor_l1_{products_hash}_{model}.pkl")
-
-    # Try to load from cache
-    if os.path.exists(l1_cache_file):
-        try:
-            with open(l1_cache_file, "rb") as f:
-                return pickle.load(f)
-        except Exception as e:
-            st.warning(f"Could not load L1 cache: {e}. Regenerating...")
-
-    # --- Generate Summaries (Cache Miss) ---
-    l1_chunks: List[ChunkRec] = []
-    
-    with st.spinner(f"Generating L1 RAPTOR summaries for {len(groups)} categories (one-time setup)..."):
-        progress_bar = st.progress(0.0)
-        start_time = time.time()
-        
-        for i, (category, prods) in enumerate(groups.items()):
-            if not prods:
-                continue
-
-            # Create a compact text blob for the summarizer
-            # We'll use the 'raw_md' which is already a clean summary of the product
-            max_items = 50 # Limit context size
-            context_blob = "\n---\n".join([p.raw_md for p in prods[:max_items]])
-            
-            prompt = (
-                f"Please summarize the following {len(prods)} product listings for the category '{category}'. "
-                f"Focus on the types of products, popular brands, and general price ranges.\n\n"
-                f"Products:\n{context_blob}"
-            )
-
-            summary_text = _call_llm_summarizer(client, prompt, model)
-            
-            if summary_text:
-                # Sanitize category for doc_id
-                cat_id_part = re.sub(r"[^a-z0-9_]+", "", category.lower().replace(" ", "_"))
-                
-                l1_chunk = ChunkRec(
-                    doc_id=f"raptor_summary_{cat_id_part}",
-                    title=f"Summary for Category: {category}",
-                    source="RAPTOR Summary",
-                    category=category,
-                    price_value=None,
-                    rating_avg=None,
-                    rating_cnt=None,
-                    url=None,
-                    text=_clean_for_bm25(summary_text),
-                    level=1
-                )
-                l1_chunks.append(l1_chunk)
-            
-            progress_bar.progress((i + 1) / len(groups))
-
-        end_time = time.time()
-        st.toast(f"Generated {len(l1_chunks)} summaries in {end_time - start_time:.2f}s")
-
-    # Save to cache
-    try:
-        with open(l1_cache_file, "wb") as f:
-            pickle.dump(l1_chunks, f)
-    except Exception as e:
-        st.warning(f"Failed to save L1 cache: {e}")
-
-    return l1_chunks
-
-
-# ----------------------------
-# BM25 indexing (L0 + L1)
-# ----------------------------
-
-def build_or_load_index(
-    products: List[ProductDoc],
-    lang: str,
-    raptor_model: str,
-    enable_raptor: bool
-) -> Tuple[BM25Okapi, List[ChunkRec], List[List[str]]]:
-    """
-    (Modified) Builds index over L0 (products) and L1 (summaries).
-    """
-    client = _ensure_client()
+def build_or_load_bm25(products: List[ProductDoc], lang: str) -> Tuple[BM25Okapi, List[ChunkRec], List[List[str]]]:
     chunker = build_chunker(lang=lang)
-    
-    # 1. Generate L0 Chunks (Products)
-    l0_chunks: List[ChunkRec] = []
+    all_chunks: List[ChunkRec] = []
     for p in products:
-        l0_chunks.extend(product_to_l0_chunks(p, chunker))
-        
-    # 2. Load or Generate L1 Chunks (RAPTOR Summaries)
-    l1_chunks = load_or_generate_l1_summaries(products, client, raptor_model, enable_raptor)
-    
-    all_chunks = l0_chunks + l1_chunks
+        all_chunks.extend(product_to_chunks(p, chunker))
 
-    # Signature: content (L0+L1) + version + lang
+    # Signature: content + version + lang
     content_sig = _sha1("\n".join([c.doc_id + "\t" + c.text for c in all_chunks]))
-    sig = _sha1(f"v3raptor|lang={lang}|{content_sig}")
+    sig = _sha1(f"v2combined|lang={lang}|{content_sig}")
     bm25_pkl, meta_pkl = _index_paths(sig)
 
     if os.path.exists(bm25_pkl) and os.path.exists(meta_pkl):
-        with st.spinner("Loading cached BM25 index..."):
-            with open(bm25_pkl, "rb") as f:
-                bm25 = pickle.load(f)
-            with open(meta_pkl, "rb") as f:
-                meta = pickle.load(f)
-            return bm25, meta["chunks"], meta["tokenized_corpus"]
+        with open(bm25_pkl, "rb") as f:
+            bm25 = pickle.load(f)
+        with open(meta_pkl, "rb") as f:
+            meta = pickle.load(f)
+        return bm25, meta["chunks"], meta["tokenized_corpus"]
 
-    # --- Build Index (Cache Miss) ---
-    with st.spinner("Tokenizing and building BM25 index..."):
-        tokenized_corpus = [_tokenize(c.text) for c in all_chunks]
-        bm25 = BM25Okapi(tokenized_corpus)
+    tokenized_corpus = [_tokenize(c.text) for c in all_chunks]
+    bm25 = BM25Okapi(tokenized_corpus)
 
-        with open(bm25_pkl, "wb") as f:
-            pickle.dump(bm25, f)
-        with open(meta_pkl, "wb") as f:
-            pickle.dump({"tokenized_corpus": tokenized_corpus, "chunks": all_chunks}, f)
+    with open(bm25_pkl, "wb") as f:
+        pickle.dump(bm25, f)
+    with open(meta_pkl, "wb") as f:
+        pickle.dump({"tokenized_corpus": tokenized_corpus, "chunks": all_chunks}, f)
 
     return bm25, all_chunks, tokenized_corpus
 
 # ----------------------------
-# Retrieval + filtering (Unchanged)
+# Retrieval + filtering
 # ----------------------------
 
 def _passes_filters(
@@ -472,7 +352,6 @@ def _passes_filters(
     price_max: Optional[float],
     rating_min: Optional[float],
 ) -> bool:
-    """ (Unchanged) Filters work on L0 and L1 chunks. """
     if allowed_sources and (chunk.source not in allowed_sources):
         return False
     if allowed_categories and (chunk.category not in allowed_categories):
@@ -481,7 +360,6 @@ def _passes_filters(
         cc = (chunk.category or "").lower()
         if category_contains.lower() not in cc:
             return False
-    # L1 Chunks have None price/rating, so they pass these filters
     if price_min is not None and (chunk.price_value is not None) and (chunk.price_value < price_min):
         return False
     if price_max is not None and (chunk.price_value is not None) and (chunk.price_value > price_max):
@@ -491,7 +369,15 @@ def _passes_filters(
     return True
 
 def _parse_query_constraints(q: str) -> Dict[str, Optional[float]]:
-    """ (Unchanged) Extract price/rating constraints + source hints. """
+    """
+    Extract price/rating constraints + source hints from a free-text query.
+
+    Examples:
+      - "under 2000", "below 2k", "<= 1500"
+      - "between 1500 and 3000"
+      - "rating >= 4.5", "4.5+ rating", "at least 4 stars"
+      - "daraz only", "startech only"
+    """
     qn = q.lower().replace(",", "")
     price_min = None
     price_max = None
@@ -511,6 +397,7 @@ def _parse_query_constraints(q: str) -> Dict[str, Optional[float]]:
     if m:
         price_min = max(price_min or 0.0, float(m.group(1)))
 
+    # Rating patterns
     m = re.search(r"rating\s*(?:>=|at least|of at least)?\s*([0-5](?:\.\d+)?)", qn)
     if m:
         rating_min = float(m.group(1))
@@ -523,6 +410,7 @@ def _parse_query_constraints(q: str) -> Dict[str, Optional[float]]:
             if m:
                 rating_min = float(m.group(1))
 
+    # Source hint
     if "daraz only" in qn or "only daraz" in qn:
         source_hint = "Daraz"
     elif "startech only" in qn or "only startech" in qn or "star tech" in qn:
@@ -544,7 +432,7 @@ def bm25_search(
     rating_min: Optional[float] = None,
     diversify: bool = True,
 ) -> List[Tuple[ChunkRec, float]]:
-    """ (Unchanged) Search logic remains the same. """
+
     q_tokens = _tokenize(query)
     scores = bm25.get_scores(q_tokens)
 
@@ -554,6 +442,7 @@ def bm25_search(
         if _passes_filters(c, allowed_sources, allowed_categories, category_contains, price_min, price_max, rating_min):
             pairs.append((i, float(sc)))
 
+    # Light boosting for title/source keyword matches
     q_words = set(q_tokens)
 
     def _boost(idx: int, s: float) -> float:
@@ -561,8 +450,7 @@ def bm25_search(
         boost = 0.0
         title_words = set(_tokenize(c.title))
         if q_words & title_words:
-            # Boost L1 summary title matches significantly
-            boost += (0.25 if c.level == 1 else 0.10) * s
+            boost += 0.10 * s
         src_w = set(_tokenize(c.source or ""))
         if q_words & src_w:
             boost += 0.05 * s
@@ -574,60 +462,50 @@ def bm25_search(
     if not diversify:
         return [(chunks[i], s) for i, s in pairs[:top_k]]
 
-    # Diversify: one per doc first (L0 chunks)
-    # L1 chunks are allowed to repeat, as they are unique summaries
+    # Diversify: one per doc first
     seen_docs = set()
     diversified: List[Tuple[ChunkRec, float]] = []
     for i, s in pairs:
         c = chunks[i]
-        # Only apply doc-level diversification to L0 chunks
-        if c.level == 0:
-            if c.doc_id in seen_docs:
-                continue
-            seen_docs.add(c.doc_id)
-        
+        if c.doc_id in seen_docs:
+            continue
         diversified.append((c, s))
+        seen_docs.add(c.doc_id)
         if len(diversified) >= top_k:
             return diversified
 
-    # (This part is unlikely to be hit if pairs are long enough, but good fallback)
+    # If more needed, allow repeats
     if len(diversified) < top_k:
         for i, s in pairs:
             c = chunks[i]
-            if (c, s) not in diversified:
-                diversified.append((c, s))
+            diversified.append((c, s))
             if len(diversified) >= top_k:
                 break
     return diversified
 
 # ----------------------------
-# OpenAI helpers (Unchanged)
+# OpenAI helpers
 # ----------------------------
 
 def _build_messages(query: str, results: List[Tuple[ChunkRec, float]]) -> List[Dict[str, str]]:
-    """ (Unchanged) This function formats L0 and L1 chunks perfectly. """
+    """
+    Build a compact, clearly cited prompt for grounded answering.
+    """
     ctx_blocks = []
     for i, (c, s) in enumerate(results, 1):
-        # L1 Chunks will show "Summary for Category: ..."
         head = f"[{i}] {c.title} — DocID: {c.doc_id}"
         if c.url:
             head += f" — {c.url}"
-        
         fields = []
-        # L1 Chunks show "Source: RAPTOR Summary"
         if c.source: fields.append(f"Source: {c.source}")
         if c.category: fields.append(f"Category: {c.category}")
-        
-        # L1 Chunks have no price/rating, so these are skipped
         if c.price_value is not None: fields.append(f"PriceValue: {int(c.price_value)}")
         if c.rating_avg is not None: fields.append(f"Rating: {c.rating_avg}/5")
-        
         meta_line = " | ".join(fields)
         ctx_blocks.append(f"{head}\n{meta_line}\n---\n{c.text}\n")
 
     system = (
         "You are a precise product assistant. Answer ONLY from the provided context. "
-        "The context contains individual products [L0] and category summaries [L1]. "
         "If the answer isn't present, say you don't know. Keep answers concise with bullets. "
         "Cite as [#] with DocID, and include URLs when available."
     )
@@ -635,7 +513,6 @@ def _build_messages(query: str, results: List[Tuple[ChunkRec, float]]) -> List[D
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 def stream_answer(model: str, messages: List[Dict[str, str]], temperature: float = 0.2):
-    """ (Unchanged) """
     client = _ensure_client()
     resp = client.chat.completions.create(
         model=model,
@@ -652,43 +529,42 @@ def stream_answer(model: str, messages: List[Dict[str, str]], temperature: float
 # Streamlit UI
 # ----------------------------
 
-st.set_page_config(page_title="RAG: Daraz + StarTech (RAPTOR + BM25)", layout="wide")
-st.title("Daraz + StarTech Products RAG — RAPTOR (L1) + BM25")
+st.set_page_config(page_title="RAG: Daraz + StarTech (BM25 + Chonkie)", layout="wide")
+st.title("Daraz + StarTech Products RAG — Recursive Chunking + BM25")
 
 with st.sidebar:
     st.markdown("### ⚙️ Settings")
-    model = st.selectbox("Answer model", ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o"], index=0)
+    model = st.selectbox("OpenAI model", ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4o"], index=0)
     lang = st.selectbox("Chunk recipe language", ["en"], index=0)
     top_k = st.slider("Top-K chunks", 1, 25, DEFAULT_TOPK)
     temperature = st.slider("Temperature", 0.0, 1.0, 0.2, 0.1)
     diversify = st.checkbox("Diversify (limit 1 chunk per product first)", value=True)
-    
-    # --- NEW: RAPTOR Setting ---
-    st.markdown("---")
-    st.markdown("### 🚀 RAPTOR")
-    enable_raptor = st.checkbox("Enable L1 Category Summaries", value=True)
-    st.caption("Generates/uses high-level summaries for each product category. Disabling this makes the app load faster but only searches individual products.")
-    # ---
 
     st.markdown("---")
+    # --- MODIFIED: Corpus URL is now optional, with a default ---
     st.markdown("### 📚 Corpus Source")
     st.caption("Leave blank to use the default URL, or provide a new raw URL below to override it.")
     remote_url_override = st.text_input(
         "Override Corpus URL",
         value="",
-        placeholder=DEFAULT_CORPUS_URL
+        placeholder=DEFAULT_CORPUS_URL  # Show the default as the placeholder
     )
+    # --- END MODIFICATION ---
 
 
-# --- Load corpus text (Unchanged) ---
+# --- MODIFIED: Load corpus text with default fallback ---
 md_text: Optional[str] = None
+
+# Decide which URL to use: the override if present, otherwise the default.
 url_to_fetch = remote_url_override.strip() or DEFAULT_CORPUS_URL
 
+# Check if the user still has the placeholder default URL
 if not url_to_fetch or "github.com/username/repo" in url_to_fetch:
     st.error("🚨 Please update `DEFAULT_CORPUS_URL` in the script to your real corpus URL.")
     st.info("You must edit the Python file and set this constant to your raw GitHub link.")
     st.stop()
 
+# Try to fetch from the selected URL
 try:
     import requests
     with st.spinner(f"Fetching corpus from {url_to_fetch[:70]}..."):
@@ -703,7 +579,7 @@ except Exception as e:
 if not md_text:
     st.error("Corpus text could not be loaded. App cannot continue.")
     st.stop()
-# --- End Load ---
+# --- END MODIFICATION ---
 
 
 # Parse products
@@ -715,27 +591,15 @@ if not products:
              "`## <Title> **DocID:** `<id>` **Source:** <...> **Category:** <...> **Price:** <...> ---`")
     st.stop()
 
-# --- MODIFIED: Build unified index (L0 + L1) ---
-bm25, chunk_table, tokenized_corpus = build_or_load_index(
-    products,
-    lang=lang,
-    raptor_model=RAPTOR_MODEL,
-    enable_raptor=enable_raptor
-)
-# ---
+# Build BM25
+with st.spinner("Chunking (Chonkie) & building BM25 index…"):
+    bm25, chunk_table, tokenized_corpus = build_or_load_bm25(products, lang=lang)
 
-# --- MODIFIED: Facets are now built from the unified chunk_table ---
-# This dynamically includes "RAPTOR Summary" as a source if enabled.
-all_sources = sorted({c.source for c in chunk_table if c.source})
-all_categories = sorted({c.category for c in chunk_table if c.category})
-# ---
+# Facets
+all_sources = sorted({p.source for p in products if p.source})
+all_categories = sorted({p.category for p in products if p.category})
 
-l0_count = sum(1 for c in chunk_table if c.level == 0)
-l1_count = sum(1 for c in chunk_table if c.level == 1)
-st.success(
-    f"Parsed **{len(products):,}** products → **{l0_count:,}** L0 Chunks + **{l1_count:,}** L1 Summaries. "
-    f"Total **{len(chunk_table):,}** chunks indexed."
-)
+st.success(f"Parsed **{len(products):,}** products → **{len(chunk_table):,}** chunks. BM25 index ready.")
 
 st.markdown("#### Filters")
 c1, c2, c3, c4, c5 = st.columns([1.2, 1.6, 1.2, 1.2, 1.2])
@@ -762,15 +626,16 @@ rating_min_filter = _to_float(rating_min_ui)
 
 # Query UI
 st.markdown("---")
-query = st.text_input("Ask about products (e.g., 'best wireless gamepad under 1500 startech only' or 'overview of laptop coolers')", "")
+query = st.text_input("Ask about products (e.g., 'best wireless gamepad under 1500 startech only')", "")
 go = st.button("Search")
 
-with st.expander("Corpus breakdown (from L0 product chunks)", expanded=False):
+with st.expander("Corpus breakdown", expanded=False):
     from collections import Counter
-    l0_chunks_only = [c for c in chunk_table if c.level == 0]
-    source_counts = Counter(c.source or "Unknown" for c in l0_chunks_only)
+    source_counts = Counter(p.source or "Unknown" for p in products)
     st.write(dict(source_counts))
-    category_counts = Counter(c.category or "Unknown" for c in l0_chunks_only)
+
+    # (optional) also show categories at a glance
+    category_counts = Counter(p.category or "Unknown" for p in products)
     st.write(dict(category_counts))
 
 
@@ -783,7 +648,7 @@ if go and query.strip():
     price_max = price_max_filter if price_max_filter is not None else constraints["price_max"]
     rating_min = rating_min_filter if rating_min_filter is not None else constraints["rating_min"]
 
-    with st.spinner("Retrieving with BM25 (searching L0 products + L1 summaries)…"):
+    with st.spinner("Retrieving with BM25…"):
         results = bm25_search(
             bm25, chunk_table, tokenized_corpus, query,
             top_k=top_k,
@@ -799,8 +664,10 @@ if go and query.strip():
     if not results:
         st.warning("No results matched your query/filters.")
         st.stop()
+
+    # --- START OF MODIFICATION ---
+    # We removed the st.columns() and will display the answer first.
     
-    # --- UI Layout (Unchanged from your original) ---
     st.subheader("Answer")
     messages = _build_messages(query, results)
     try:
@@ -808,17 +675,13 @@ if go and query.strip():
     except Exception as e:
         st.error(f"OpenAI error: {e}")
 
+    # Now, we put the "Top matches" inside a closed st.expander
     with st.expander("View Top Matches (Context Used)", expanded=False):
         st.subheader("Top matches")
         for i, (chunk, score) in enumerate(results, 1):
-            # --- NEW: Add a badge for L1 summaries ---
-            level_badge = "L1 Summary" if chunk.level == 1 else "L0 Product"
-            
             meta_bits = []
             if chunk.source: meta_bits.append(f"**Source:** {chunk.source}")
             if chunk.category: meta_bits.append(f"**Category:** {chunk.category}")
-            
-            # L1 chunks won't have price/rating
             if chunk.price_value is not None: meta_bits.append(f"**Price:** ~৳{int(chunk.price_value)}")
             if chunk.rating_avg is not None:
                 rc = f" ({chunk.rating_cnt} ratings)" if chunk.rating_cnt is not None else ""
@@ -826,20 +689,21 @@ if go and query.strip():
 
             st.markdown(
                 f"**[{i}] {chunk.title}** \n"
-                f"DocID: `{chunk.doc_id}` • Score: `{score:.3f}` • **Type: `{level_badge}`**  \n"
-                f"{'URL: ' + chunk.url if chunk.url else ''}  \n"
-                + ("  \n".join(meta_bits) if meta_bits else "")
+                f"DocID: `{chunk.doc_id}` • Score: `{score:.3f}`  \n"
+                f"{'URL: ' + chunk.url if chunk.url else ''}  \n"
+                + ("  \n".join(meta_bits) if meta_bits else "")
             )
             with st.expander("View chunk"):
                 st.write(chunk.text)
     
-    # --- Export (Unchanged) ---
+    # --- END OF MODIFICATION ---
+
+    # Export matched items as JSON
     export_rows = []
     for i, (c, s) in enumerate(results, 1):
         export_rows.append({
             "rank": i,
             "score": s,
-            "level": c.level, # Added level to export
             "doc_id": c.doc_id,
             "title": c.title,
             "source": c.source or "",
